@@ -1,0 +1,7 @@
+instance_id,test_type,visibility,command,notes
+django__django-16485,existing_regression,student_visible,"python tests/runtests.py template_tests.filter_tests.test_floatformat","Run after applying your patch. This module contains existing floatformat tests; do not use SWE-bench test_patch."
+django__django-14580,existing_regression,student_visible,"python tests/runtests.py migrations.test_writer","Run after applying your patch. This module contains existing migration writer serializer tests."
+sphinx-doc__sphinx-8595,existing_regression,student_visible,"python -m pytest tests/test_ext_autodoc_automodule.py","Run after applying your patch. If the exact FAIL_TO_PASS test is not present at base_commit, write your own reproduction test from the issue statement."
+pylint-dev__pylint-7080,existing_regression,student_visible,"python -m pytest tests/test_self.py::TestRunTC::test_ignore_path_recursive tests/test_self.py::TestRunTC::test_ignore_recursive","Run after applying your patch. These are existing recursive ignore tests near the bug."
+pytest-dev__pytest-7571,existing_regression,student_visible,"python -m pytest testing/logging/test_fixture.py::test_change_level testing/logging/test_fixture.py::test_change_level_undo","Run after applying your patch. These are existing caplog level tests near the bug."
+astropy__astropy-12907,practice_throwaway,student_visible,"python -m pytest astropy/modeling/tests/test_separable.py","Practice-only task from tasks_throwaway.csv. This is not one of the five graded instances."
