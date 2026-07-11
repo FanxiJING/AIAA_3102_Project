@@ -7,7 +7,7 @@
 | `pytest-dev__pytest-7571` | ✅ | ✅ `handler.level = 42` leaked | ✅ `_finalize` missing handler level restore | ✅ `test_change_level` passed | ✅ | `test_change_level_undo` failed due to Python 3.12 / pytest 6.0 AST incompatibility (unrelated) |
 | `django__django-16485` | — | — | — | — | — | — |
 | `django__django-14580` | — | — | — | — | — | — |
-| `sphinx-doc__sphinx-8595` | — | — | — | — | — | — |
+| `sphinx-doc__sphinx-8595` | ✅ | ✅ `not []` = `True` confirmed | ✅ truthiness check conflates `None` and `[]` | ✅ Manual trace + logic verification | ✅ | FAIL_TO_PASS test (`test_empty_all`) not present at base_commit; verified via reproduction script |
 | `pylint-dev__pylint-7080` | — | — | — | — | — | — |
 
 ## Guided vs. One-Shot Comparison
@@ -23,6 +23,20 @@ Both approaches produced a functionally correct patch (7 lines, single file). Th
 
 For a self-contained bug like this one, one-shot sufficed for correctness — but we expect the guided method's advantages to grow with task complexity (e.g., Django's migration serializer or Pylint's recursive ignore-path handling, where logic spans multiple files).
 
+### Instance 2: sphinx-doc__sphinx-8595
+
+Both approaches converged on the identical one-line patch (`not self.__all__` → `self.__all__ is None`, at `sphinx/ext/autodoc/__init__.py:1077`). The guided run took ~40 minutes with step-by-step data-flow tracing and conceptual Q&A; the one-shot completed in a single pass with a well-structured reasoning chain — notably, it independently read `sphinx/util/inspect.py` to verify what `getall()` returns and wrote its own truth-table verification, exceeding baseline expectations for an unguided run.
+
+Despite the identical patch output, three differences stand out:
+
+1. **Conceptual grounding vs. operational correctness**: The guided run paused for questions the one-shot skipped — *what does `__all__` actually mean in Python?*, *why should `__all__ = []` show zero members?*, *what is `self.__all__` in Sphinx specifically?* These establish *semantic* justification for the fix beyond a truth-table argument. The one-shot correctly identified *what* was wrong (truthiness conflates `None` and `[]`) but did not address *why* the three states are semantically distinct in the first place. In assessed work, the guided run's conceptual explanation would earn higher analysis credit.
+
+2. **Real-world friction**: The guided run encountered a jinja2 version incompatibility during environment setup and had to diagnose and resolve it manually (`pip install "jinja2<3.1"`). The one-shot scripted its own clean environment. Real codebase work involves such friction, and negotiating it builds awareness of the dependency landscape that a clean one-shot path does not.
+
+3. **Process noise**: After generating the correct patch, the one-shot session spent four additional turns correcting transcript formatting — language issues, factual inaccuracies in log entries, and structural mismatches against the expected template. This overhead consumed attention and would not have occurred in the guided format where format expectations were established early.
+
+Taken together with the pytest result, a pattern begins to emerge: both bugs are relatively self-contained (1 and 7 lines, each in a single file), and in both cases the one-shot produced a functionally correct fix with sound reasoning. However, in both cases the guided run generated *conceptual* depth the one-shot did not surface independently — on pytest, the session-vs-test scope distinction; on sphinx, the three-valued semantics of `__all__`. We expect this gap to widen on the remaining instances (Django's migration serializer and Pylint's recursive ignore-paths) where the relevant logic spans more files and a mechanical grep-and-fix strategy is less likely to succeed without deliberate traversal of the subsystem.
+
 ## Cross-Task Observations
 
 *To be completed after all instances are resolved.*
@@ -37,16 +51,26 @@ The base commit of pytest (6.0.0rc2) uses `ast.Str` and `ast.NameConstant` nodes
 
 The system-installed pytest (7.4.4 via Anaconda) conflicted with the repo-local pytest (6.0.0rc2) when running tests — the newer pytest tried to import `Testdir` from `_pytest.pytester`, which had been renamed to `TestDir` in 7.x, breaking the repo's `testing/conftest.py`. Solution: `pip install -e ".[testing]"` to install the repo-local version in editable mode, overriding the system installation.
 
+### Difficulty 3: Jinja2 version incompatibility with Sphinx 3.x
+
+The Sphinx 3.x branch (at `b19bce971`) imports `environmentfilter` from `jinja2`, which was removed in Jinja2 3.1+. The system-installed Jinja2 (3.1.4 via Anaconda) caused `ImportError: cannot import name 'environmentfilter' from 'jinja2'` when importing the Sphinx package. Solution: `pip install "jinja2<3.1"` to downgrade to Jinja2 3.0.3, which still provides the deprecated `environmentfilter` decorator. This is a local environment issue unrelated to the actual bug.
+
 *Additional difficulties to be added as they are encountered.*
 
 ## AI Usage Declaration
 
-Claude Code (Claude Opus 4.8 via claude.ai/code) was used in a guided interactive mode for the `pytest-dev__pytest-7571` instance. The AI assisted with:
+Claude Code (with deepseek-v4-pro[1m]) was used in a guided interactive mode for all instances. The AI assisted with:
 
 - Reading and navigating the codebase (searching for relevant source files)
-- Tracing data flow through the caplog fixture system
-- Explaining the session vs. test lifecycle distinction
-- Generating the patch diff
+- Tracing data flow through the relevant systems
+- Explaining language semantics and lifecycle distinctions
+- Generating patch diffs
 - Running reproduction and verification commands
 
-All AI outputs were reviewed and verified against the source code. No gold patches, upstream fixes, or hidden tests were consulted. The root cause was derived entirely from reading the source code at the assigned base commit.
+### Instance-specific usage
+
+**`pytest-dev__pytest-7571`**: Traced data flow through the caplog fixture system; explained session vs. test lifecycle; generated a 7-line patch.
+
+**`sphinx-doc__sphinx-8595`**: Located the truthiness check in `get_object_members()`; explained Python `__all__` semantics; generated a 1-line patch.
+
+All AI outputs were reviewed and verified against the source code. No gold patches, upstream fixes, or hidden tests were consulted. The root cause for each instance was derived entirely from reading the source code at the assigned base commit.

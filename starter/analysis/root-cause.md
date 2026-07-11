@@ -52,7 +52,47 @@ Three changes in `LogCaptureFixture`:
 
 ## sphinx-doc__sphinx-8595
 
-*To be completed.*
+### Bug Mechanism
+
+When `__all__ = []` (an empty list) is defined in a Python module, Sphinx autodoc with `:members:` still documents all public functions, instead of showing nothing. The bug is a truthiness check that fails to distinguish `None` (no `__all__` defined) from `[]` (explicitly empty `__all__`).
+
+**Trace of the logic error:**
+
+1. **Module defines `__all__ = []`**: The developer explicitly declares that this module has no public API. Python's own `from module import *` respects this — importing nothing.
+
+2. **`import_object()` reads `__all__`**: `inspect.getall(self.object)` returns `[]`, which is stored in `self.__all__`. This is correct.
+
+3. **`get_object_members()` checks the condition** (line 1077): `if not self.__all__:` evaluates `not []`, which is `True`. The code enters the branch intended for "no `__all__` defined" and returns all module members unfiltered.
+
+4. **The else-branch (filtering) is never reached**: The code that marks members outside `__all__` as skipped is bypassed entirely.
+
+**Three semantically distinct states collapsed into two:**
+
+| `self.__all__` | Developer intent | `not self.__all__` | `self.__all__ is None` |
+|---|---|---|---|
+| `None` | "No `__all__` — use default rules" | `True` | `True` |
+| `['foo', 'bar']` | "These names are public" | `False` | `False` |
+| `[]` | "Nothing is public" | `True` ← bug | `False` |
+
+The root cause is that Python truthiness treats both `None` and `[]` as falsy, but only `None` signals "undefined" — `[]` is a deliberate, meaningful value.
+
+### Fix
+
+A one-line change at `sphinx/ext/autodoc/__init__.py:1077`:
+
+```diff
+-            if not self.__all__:
++            if self.__all__ is None:
+```
+
+This replaces a truthiness check with an identity check against `None`. After the fix, `[]` no longer matches the "undefined" branch — it falls through to the else-branch where the empty `__all__` list causes every member to be marked as skipped, producing zero documented members as intended.
+
+### Evidence
+
+- Reproduction script confirmed `not []` evaluates to `True` at the Python level, demonstrating the logic bug.
+- The source code of `get_object_members()` was read and traced; the truthiness check at line 1077 is the sole decision point controlling whether members are filtered.
+- Manual trace confirmed all three cases behave correctly after the fix: `None` → show all, `['foo']` → filter to `foo`, `[]` → show none.
+- The existing test `test_autodoc_ignore_module_all` (which tests `sort_by_all` with a non-empty `__all__`) is unaffected by the change.
 
 ## pylint-dev__pylint-7080
 

@@ -24,7 +24,13 @@ Also relevant: the `caplog` fixture definition at line 461 creates a new `LogCap
 
 ## sphinx-doc__sphinx-8595
 
-*To be completed.*
+The bug is in `sphinx/ext/autodoc/__init__.py`, within the `ModuleDocumenter` class (a subclass of `Documenter` that handles `automodule` directives). Three locations are involved:
+
+- **`__init__`** (line 989): Initializes `self.__all__ = None` — the default value indicating "no `__all__` defined."
+- **`import_object`** (line 1015): Calls `inspect.getall(self.object)` to read the documented Python module's actual `__all__` variable, storing the result in `self.__all__`. If the module has `__all__ = []`, this stores `[]`; if it has `__all__ = ['foo']`, it stores `['foo']`; if there is no `__all__`, the `AttributeError` is caught and `self.__all__` stays `None`.
+- **`get_object_members`** (line 1074): The decision point. When `want_all` is `True` (i.e., `:members:` was used), it checks `if not self.__all__:` (line 1077) to decide whether to return all members or filter by `__all__`. The truthiness check treats both `None` (undefined) and `[]` (empty) as falsy, conflating two semantically distinct cases.
+
+The `self.__all__` value is also used for sorting in `sort_members` (line 1102).
 
 ## pylint-dev__pylint-7080
 
