@@ -5,8 +5,8 @@
 | Instance | Patch | Reproduced | Root Cause Found | Local Test | `git apply --check` | Notes |
 |---|---|---|---|---|---|---|
 | `pytest-dev__pytest-7571` | ✅ | ✅ `handler.level = 42` leaked | ✅ `_finalize` missing handler level restore | ✅ `test_change_level` passed | ✅ | `test_change_level_undo` failed due to Python 3.12 / pytest 6.0 AST incompatibility (unrelated) |
-| `django__django-16485` | ✅ | ✅ invalid Decimal context precision | ✅ derived `prec=0` for exponent-bearing zero | ✅ 10/10 public test methods passed | ✅ | Official `sb-cli` not run |
-| `django__django-14580` | ✅ | ✅ expression/import-set mismatch | ✅ serializer emitted `models.Model` with an empty import set | ✅ 50/50 writer tests passed | ✅ | Initial regression test was corrected after detecting global namespace leakage; official `sb-cli` not run |
+| `django__django-16485` | — | — | — | — | — | — |
+| `django__django-14580` | — | — | — | — | — | — |
 | `sphinx-doc__sphinx-8595` | ✅ | ✅ `not []` = `True` confirmed | ✅ truthiness check conflates `None` and `[]` | ✅ Manual trace + logic verification | ✅ | FAIL_TO_PASS test (`test_empty_all`) not present at base_commit; verified via reproduction script |
 | `pylint-dev__pylint-7080` | — | — | — | — | — | — |
 
@@ -39,9 +39,7 @@ Taken together with the pytest result, a pattern begins to emerge: both bugs are
 
 ## Cross-Task Observations
 
-The two Django defects are failures of internal invariants rather than large algorithmic errors. In `floatformat()`, a derived value crossed an external API's valid lower boundary (`Context.prec >= 1`). In migration serialization, the two halves of a return contract became inconsistent: the generated expression referenced a name that the import set did not provide. Both patches are small, but confidence required tracing the surrounding subsystem and designing a regression that observed the correct contract.
-
-The Django work also demonstrates why a passing test is not automatically useful evidence. The original 16485 module passed because the exact zero representation was uncovered. The first new 14580 test passed because its execution environment accidentally supplied the missing name. A meaningful regression must fail for the intended mechanism before implementation changes are accepted. Additional cross-task synthesis should be added after Pylint is completed.
+*To be completed after all instances are resolved.*
 
 ## Difficulties and Solutions
 
@@ -58,22 +56,6 @@ The system-installed pytest (7.4.4 via Anaconda) conflicted with the repo-local 
 The Sphinx 3.x branch (at `b19bce971`) imports `environmentfilter` from `jinja2`, which was removed in Jinja2 3.1+. The system-installed Jinja2 (3.1.4 via Anaconda) caused `ImportError: cannot import name 'environmentfilter' from 'jinja2'` when importing the Sphinx package. Solution: `pip install "jinja2<3.1"` to downgrade to Jinja2 3.0.3, which still provides the deprecated `environmentfilter` decorator. This is a local environment issue unrelated to the actual bug.
 
 *Additional difficulties to be added as they are encountered.*
-
-### Difficulty 4: Historical Django environment selection
-
-The available system interpreters were Python 3.5.2 and 3.12.13, neither a good common environment for the two assigned historical revisions. A dedicated Python 3.10.20 Conda environment was created from `conda-forge`, and each instance used an independent checkout at its exact base commit. Import paths and commit hashes were recorded before tests.
-
-### Difficulty 5: Standalone reproduction reached unconfigured settings after the 16485 fix
-
-Once quantization was repaired, an ad-hoc script progressed to localization and raised `ImproperlyConfigured` because Django settings were not initialized. This was separated from the original Decimal failure. The configured Django test runner was used for authoritative verification, where both focused and full filter tests passed.
-
-### Difficulty 6: A false-negative migration serializer test
-
-The first 14580 test used a round-trip helper whose `exec()` inherited the test module's global `models` import. The missing serializer import was therefore hidden. Reading the helper exposed the contamination, and the test was redesigned to compare the serialized expression and import set directly.
-
-### Difficulty 7: Generated database files in the patch worktree
-
-Django's test runner produced temporary SQLite databases. Explicit `git status`, database cleanup, `git diff --check`, and clean-worktree apply checks ensured the submitted patches contained only the intended source and regression-test files.
 
 ## AI Usage Declaration
 
@@ -92,5 +74,3 @@ Claude Code (with deepseek-v4-pro[1m]) was used in a guided interactive mode for
 **`sphinx-doc__sphinx-8595`**: Located the truthiness check in `get_object_members()`; explained Python `__all__` semantics; generated a 1-line patch.
 
 All AI outputs were reviewed and verified against the source code. No gold patches, upstream fixes, or hidden tests were consulted. The root cause for each instance was derived entirely from reading the source code at the assigned base commit.
-
-**Django instances:** Codex was used interactively for environment troubleshooting, source localization, candidate patch reasoning, test design, diff review, and artifact preparation. The student executed the commands and supplied the real outputs. Suggestions were checked against the assigned revisions and public tests. In `django__django-14580`, a passing AI-suggested first test was not accepted at face value; the helper was inspected, its false negative was diagnosed, and the test was redesigned before the implementation patch was accepted.
