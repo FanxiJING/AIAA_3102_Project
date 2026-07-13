@@ -44,11 +44,58 @@ Three changes in `LogCaptureFixture`:
 
 ## django__django-16485
 
-*To be completed.*
+### Bug Mechanism
+
+At base commit `39f83765e12b0e5d260b7939fc3fe281d879b279`, both `floatformat("0.00", 0)` and `floatformat(Decimal("0.00"), 0)` reach `d.quantize(..., Context(prec=prec))` and raise `ValueError: valid range for prec is [1, MAX_PREC]`.
+
+For `Decimal("0.00")`, `d.as_tuple()` is `DecimalTuple(sign=0, digits=(0,), exponent=-2)`. Since `m = int(d) - d` and `p` are both zero, the original calculation produces:
+
+```text
+units = len((0,)) + (-2) = -1
+prec = abs(0) + (-1) + 1 = 0
+```
+
+`decimal.Context` requires precision of at least one, so the filter fails before quantization or localization. The mechanism is tied to zero-valued Decimal representations with a negative stored exponent, not only to the literal string shown in the issue.
+
+### Fix
+
+The precision calculation is clamped at Decimal's valid lower bound:
+
+```diff
+-    prec = abs(p) + units + 1
++    prec = max(abs(p) + units + 1, 1)
+```
+
+This leaves every previously positive precision unchanged and avoids a literal-value special case. Regression assertions cover both the string and `Decimal` input forms. Before the source change, the focused test failed at `Context(prec=prec)`; after the change, the focused test and all 10 public `floatformat` test methods passed. The patch also applied cleanly in a worktree at the assigned base commit.
+
+Official `sb-cli` evaluation has not been run, so no hidden-test result is claimed.
 
 ## django__django-14580
 
-*To be completed.*
+### Bug Mechanism
+
+At base commit `36fa071d6ebd18a61c4d7f1b5c9d17106134bd44`, `TypeSerializer` contains:
+
+```python
+(models.Model, "models.Model", []),
+```
+
+Therefore `MigrationWriter.serialize(models.Model)` returns `("models.Model", set())`. The emitted expression references the name `models`, but the accompanying dependency set does not import it. A migration containing an application-defined mixin can consequently render `bases=(app.models.MyMixin, models.Model)` without `from django.db import models`, causing `NameError` when the generated Python is evaluated.
+
+The first regression-test attempt used `assertSerializedEqual(models.Model)` and passed incorrectly. Inspection showed that its helper executes generated code with `exec(string, globals(), d)`, while the test module already imports `models` globally. This masked the missing import. The corrected regression directly compares the serializer contract and fails on the unpatched base with `('models.Model', set()) != ('models.Model', {'from django.db import models'})`.
+
+### Fix
+
+The special case now declares the dependency required by its own expression:
+
+```diff
+-(models.Model, "models.Model", []),
++(models.Model, "models.Model", ["from django.db import models"]),
+```
+
+This is narrower than adding an unconditional import in `MigrationWriter`; migrations that do not emit `models.*` remain free of unused imports. The corrected focused regression passed after the change, and the full writer module increased from 49 to 50 tests with all 50 passing. The patch also applied cleanly in a worktree at the assigned base commit.
+
+Official `sb-cli` evaluation has not been run, so no hidden-test result is claimed.
 
 ## sphinx-doc__sphinx-8595
 

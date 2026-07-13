@@ -1,0 +1,18 @@
+E
+======================================================================
+ERROR: test_zero_values (template_tests.filter_tests.test_floatformat.FunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\data_code\py for ai\final_project\topic-c-swe-bench-codebase-adoption\repos\django__django-16485\tests\template_tests\filter_tests\test_floatformat.py", line 108, in test_zero_values
+    self.assertEqual(floatformat("0.00", 0), "0")
+  File "D:\data_code\py for ai\final_project\topic-c-swe-bench-codebase-adoption\repos\django__django-16485\django\template\defaultfilters.py", line 190, in floatformat
+    rounded_d = d.quantize(exp, ROUND_HALF_UP, Context(prec=prec))
+ValueError: valid range for prec is [1, MAX_PREC]
+
+----------------------------------------------------------------------
+Ran 1 test in 0.002s
+
+FAILED (errors=1)
+Testing against Django installed in 'D:\data_code\py for ai\final_project\topic-c-swe-bench-codebase-adoption\repos\django__django-16485\django' with up to 20 processes
+Found 1 test(s).
+System check identified no issues (0 silenced).

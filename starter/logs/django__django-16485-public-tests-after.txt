@@ -1,0 +1,8 @@
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 1.701s
+
+OK
+Testing against Django installed in 'D:\data_code\py for ai\final_project\topic-c-swe-bench-codebase-adoption\repos\django__django-16485\django' with up to 20 processes
+Found 10 test(s).
+System check identified no issues (0 silenced).
