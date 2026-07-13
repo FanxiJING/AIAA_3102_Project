@@ -16,11 +16,11 @@ Also relevant: the `caplog` fixture definition at line 461 creates a new `LogCap
 
 ## django__django-16485
 
-*To be completed.*
+The relevant behavior is implemented by `floatformat()` in `django/template/defaultfilters.py`. The filter parses its precision argument and optional `g`/`u` suffixes, converts the input to `Decimal`, determines whether the value has a fractional component, derives a quantization exponent and local decimal-context precision, calls `Decimal.quantize()`, reconstructs a non-scientific decimal string, and finally delegates localization and grouping to `django.utils.formats.number_format()`. The closest public tests are in `tests/template_tests/filter_tests/test_floatformat.py`, especially `FunctionTests.test_zero_values()`, `test_negative_zero_values()`, and `test_low_decimal_precision()`. The reported failure occurs before localization, when `floatformat()` constructs the local `decimal.Context` used by `quantize()`.
 
 ## django__django-14580
 
-*To be completed.*
+Migration source generation is split between `django/db/migrations/writer.py` and serializers in `django/db/migrations/serializer.py`. `MigrationWriter.serialize()` selects a serializer for each Python value. Each serializer returns both a Python source expression and the import statements required to evaluate it. `TypeSerializer` contains special handling for `models.Model` and `type(None)`, while `MigrationWriter` later aggregates and orders the returned imports when rendering a migration. The relevant public tests are in `tests/migrations/test_writer.py`; `WriterTests.assertSerializedResultEqual()` is the appropriate helper when both expression text and imports must be verified. The defect is localized to the `models.Model` special case in `TypeSerializer`, not to the writer's general import-rendering logic.
 
 ## sphinx-doc__sphinx-8595
 
