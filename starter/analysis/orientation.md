@@ -1,37 +1,21 @@
 # Orientation
 
-Brief description of where the relevant logic lives for each task.
-
 ## pytest-dev__pytest-7571
 
-The bug is in `src/_pytest/logging.py`, within the `LogCaptureFixture` class. Three methods are involved:
-
-- **`__init__`** (line 344): Initializes `_initial_logger_levels`, a dict that saves original logger levels for restoration. Does not track the handler's original level.
-- **`set_level`** (line 422): Mutates both the Python logger level (via `logger_obj.setLevel`) and the shared `LogCaptureHandler` level (via `self.handler.setLevel`). The logger's original level is saved via `_initial_logger_levels.setdefault()`, but the handler's original level is not saved.
-- **`_finalize`** (line 350): Called at fixture teardown. Restores logger levels from `_initial_logger_levels`, but does not restore `handler.level`.
-
-The shared handler is created once in `LoggingPlugin.__init__` (line 527) as `self.caplog_handler`. The `_runtest_for` method (line 674) stores this same handler into each test's `item._store` via `caplog_handler_key`. The `LogCaptureFixture.handler` property (line 360) retrieves it from the store. This shared-scope design means handler state persists across test boundaries.
-
-Also relevant: the `caplog` fixture definition at line 461 creates a new `LogCaptureFixture` per test and calls `_finalize` in teardown.
-
-## django__django-16485
-
-The relevant behavior is implemented by `floatformat()` in `django/template/defaultfilters.py`. The filter parses its precision argument and optional `g`/`u` suffixes, converts the input to `Decimal`, determines whether the value has a fractional component, derives a quantization exponent and local decimal-context precision, calls `Decimal.quantize()`, reconstructs a non-scientific decimal string, and finally delegates localization and grouping to `django.utils.formats.number_format()`. The closest public tests are in `tests/template_tests/filter_tests/test_floatformat.py`, especially `FunctionTests.test_zero_values()`, `test_negative_zero_values()`, and `test_low_decimal_precision()`. The reported failure occurs before localization, when `floatformat()` constructs the local `decimal.Context` used by `quantize()`.
-
-## django__django-14580
-
-Migration source generation is split between `django/db/migrations/writer.py` and serializers in `django/db/migrations/serializer.py`. `MigrationWriter.serialize()` selects a serializer for each Python value. Each serializer returns both a Python source expression and the import statements required to evaluate it. `TypeSerializer` contains special handling for `models.Model` and `type(None)`, while `MigrationWriter` later aggregates and orders the returned imports when rendering a migration. The relevant public tests are in `tests/migrations/test_writer.py`; `WriterTests.assertSerializedResultEqual()` is the appropriate helper when both expression text and imports must be verified. The defect is localized to the `models.Model` special case in `TypeSerializer`, not to the writer's general import-rendering logic.
+The relevant logic is in `src/_pytest/logging.py`, primarily in the `LogCaptureFixture` class. `__init__()` stores the original logger levels in `_initial_logger_levels`, `set_level()` changes both the selected logger and the shared `LogCaptureHandler`, and `_finalize()` restores state at test teardown. The handler is created once by `LoggingPlugin.__init__()` and reused by each test's `caplog` fixture through the item store, so the interaction between the session-scoped handler and the per-test fixture is the key area to inspect. The related tests are in `testing/logging/test_fixture.py`.
 
 ## sphinx-doc__sphinx-8595
 
-The bug is in `sphinx/ext/autodoc/__init__.py`, within the `ModuleDocumenter` class (a subclass of `Documenter` that handles `automodule` directives). Three locations are involved:
+The relevant logic is in `sphinx/ext/autodoc/__init__.py`, in the `ModuleDocumenter` class. `__init__()` initializes `self.__all__`, `import_object()` reads the module's actual `__all__` value, and `get_object_members()` decides which members are documented when `:members:` is requested; `sort_members()` also uses the stored value. The important distinction is between `None` for an undefined `__all__` and `[]` for an explicitly empty one. The related test module is `tests/test_ext_autodoc_automodule.py`.
 
-- **`__init__`** (line 989): Initializes `self.__all__ = None` — the default value indicating "no `__all__` defined."
-- **`import_object`** (line 1015): Calls `inspect.getall(self.object)` to read the documented Python module's actual `__all__` variable, storing the result in `self.__all__`. If the module has `__all__ = []`, this stores `[]`; if it has `__all__ = ['foo']`, it stores `['foo']`; if there is no `__all__`, the `AttributeError` is caught and `self.__all__` stays `None`.
-- **`get_object_members`** (line 1074): The decision point. When `want_all` is `True` (i.e., `:members:` was used), it checks `if not self.__all__:` (line 1077) to decide whether to return all members or filter by `__all__`. The truthiness check treats both `None` (undefined) and `[]` (empty) as falsy, conflating two semantically distinct cases.
+## django__django-16485
 
-The `self.__all__` value is also used for sorting in `sort_members` (line 1102).
+The relevant logic is the `floatformat()` filter in `django/template/defaultfilters.py`. It parses the precision argument, converts the input to `Decimal`, calculates the quantization precision, calls `Decimal.quantize()` with a local context, and then formats and localizes the result through Django's number-formatting utilities. The reported failure is in the precision calculation before localization, so the closest tests are in `tests/template_tests/filter_tests/test_floatformat.py`, especially the zero-value, negative-zero, and low-precision cases.
+
+## django__django-14580
+
+The relevant logic is split between `django/db/migrations/serializer.py` and `django/db/migrations/writer.py`. `MigrationWriter.serialize()` selects a serializer, `TypeSerializer` handles special values such as `models.Model`, and each serializer returns both a source expression and the imports required to evaluate it; the writer later aggregates and orders those imports when rendering the migration. The defect is localized to the `models.Model` special case in `TypeSerializer`, while the appropriate regression tests and `assertSerializedResultEqual()` helper are in `tests/migrations/test_writer.py`.
 
 ## pylint-dev__pylint-7080
 
-*To be completed.*
+The relevant logic begins in `pylint/lint/pylinter.py`, where `PyLinter._discover_files()` uses `os.walk()` to discover Python files and delegates filtering to `_is_ignored_file()` in `pylint/lint/expand_modules.py`; that helper applies the `ignore`, `ignore-patterns`, and `ignore-paths` configuration values, which are declared in `pylint/lint/base_options.py` and compiled during configuration parsing. The bug is located at this final path-matching boundary, where recursive Windows paths are compared with configured regular expressions. The surrounding recursive-ignore tests are in `tests/test_self.py` under `TestRunTC`, and the focused student reproduction is `tests/test_pylint_7080_reproduction.py`.

@@ -8,7 +8,7 @@
 | `django__django-16485` | ✅ | ✅ invalid Decimal context precision | ✅ derived `prec=0` for exponent-bearing zero | ✅ 10/10 public test methods passed | ✅ | Official `sb-cli` not run |
 | `django__django-14580` | ✅ | ✅ expression/import-set mismatch | ✅ serializer emitted `models.Model` with an empty import set | ✅ 50/50 writer tests passed | ✅ | Initial regression test was corrected after detecting global namespace leakage; official `sb-cli` not run |
 | `sphinx-doc__sphinx-8595` | ✅ | ✅ `not []` = `True` confirmed | ✅ truthiness check conflates `None` and `[]` | ✅ Manual trace + logic verification | ✅ | FAIL_TO_PASS test (`test_empty_all`) not present at base_commit; verified via reproduction script |
-| `pylint-dev__pylint-7080` | — | — | — | — | — | — |
+| `pylint-dev__pylint-7080` | ✅ | ✅ Windows `\\` path did not match `/` regex | ✅ raw path was matched without normalization | ✅ focused reproduction + 2 recursive tests, `3 passed` | ✅ | FAIL_TO_PASS name absent at base commit; official `sb-cli` not run |
 
 ## Guided vs. One-Shot Comparison
 
@@ -74,6 +74,14 @@ The first 14580 test used a round-trip helper whose `exec()` inherited the test 
 ### Difficulty 7: Generated database files in the patch worktree
 
 Django's test runner produced temporary SQLite databases. Explicit `git status`, database cleanup, `git diff --check`, and clean-worktree apply checks ensured the submitted patches contained only the intended source and regression-test files.
+
+### Difficulty 8: Recovering a historical checkout without inventing test data
+
+The assigned Pylint commit could not be fully materialized by a normal Windows checkout because several official test paths exceeded the platform's path-length limit. A partial checkout would have made the test result misleading: the target test data simply was not present. The solution was to recover `pylint/` and `tests/` from the local Git object database at the exact assigned commit using `git archive`. This preserved the original upstream files and made the focused reproduction auditable. The lesson is that a green test result is not meaningful until the test inputs and source tree are confirmed to be complete.
+
+### Difficulty 9: Distinguishing a valid patch from a valid-looking patch file
+
+The first Pylint diff contained the correct two-line source change, but its manually assembled patch artifact had an invalid unified-diff ending, so `git apply --check` could not parse it. Instead of treating the source diff as sufficient, the patch was regenerated from the actual checkout with `git diff` and then applied in a clean temporary worktree at the assigned base commit. The successful check demonstrates that submission packaging is part of correctness: a logically correct fix is not submit-ready until the exact artifact can be applied by the evaluator.
 
 ## AI Usage Declaration
 
