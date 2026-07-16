@@ -8,7 +8,7 @@
 | `django__django-16485` | ✅ | ✅ both supplied inputs raised invalid `Context(prec=0)` | ✅ derived precision violated `decimal.Context` minimum | ✅ F2P 1/1, P2P 9/9, public module 10/10 | ✅ | Original public baseline 10/10; official `sb-cli` not run |
 | `django__django-14580` | ✅ | ✅ isolated generated migration raised `NameError` | ✅ `TypeSerializer` emitted `models.Model` without its required import | ✅ focused 1/1, writer 50/50, migrations 579 with 1 skip | ✅ | Test-only old-source check failed as expected; official `sb-cli` not run |
 | `sphinx-doc__sphinx-8595` | ✅ | ✅ `not []` = `True` confirmed | ✅ truthiness check conflates `None` and `[]` | ✅ Manual trace + logic verification | ✅ | FAIL_TO_PASS test (`test_empty_all`) not present at base_commit; verified via reproduction script |
-| `pylint-dev__pylint-7080` | — | — | — | — | — | — |
+| `pylint-dev__pylint-7080` | ✅ | ✅ Windows-style `src\\gen\\about.py` was not matched by `^src/gen/.*$` before the fix | ✅ raw platform separators reached the full-path regex matcher | ✅ focused reproduction plus `test_ignore_path_recursive` and `test_ignore_recursive`: 3 passed | ✅ | The assigned FAIL_TO_PASS metadata name `test_ignore_path_recursive_current_dir` is absent from the base checkout; the focused reproduction follows the starter fallback guidance |
 
 ## `django__django-16485` verification matrix
 
@@ -60,6 +60,18 @@ The one-shot added the focused regression and production change together, so the
 The patch repairs the serializer at the layer that owns the invalid contract. `TypeSerializer` already chooses the `models.Model` spelling, so it must also return the import that makes that spelling valid. `TupleSerializer`, `OperationWriter`, and `MigrationWriter` already propagate and merge imports, so adding operation-specific logic would be unnecessary. The change preserves the serialized expression and affects only its required import metadata. The direct serializer assertion catches the exact omission, while isolated execution verifies the complete writer output without relying on test-module globals.
 
 The first targeted test invocation did not reach the test: inherited `PYTHONPATH` caused Django to be imported from the `django__django-16485` checkout and produced an `ImportError`. After the path was pinned to the assigned checkout, every focused and broader test passed. Formal harness behavior remains unverified, and no `sb-cli` success is claimed.
+
+## `pylint-dev__pylint-7080` verification matrix
+
+| Check | Command or evidence | Result |
+|---|---|---|
+| Direct pre-fix reproduction | Match the configured pattern `^src/gen/.*$` against the Windows-style path `src\\gen\\about.py` | Failed as expected: the raw backslash-separated path was not ignored |
+| Regression contract | Focused reproduction for Windows path normalization | Failed before the source change and passed after the source change |
+| Existing recursive-ignore tests | `test_ignore_path_recursive` and `test_ignore_recursive` | Passed |
+| Combined focused run | Focused reproduction plus the two existing recursive-ignore tests | 3 passed |
+| Patch applicability | `git apply --check` against a clean base checkout | Passed |
+
+The Pylint patch is limited to the final path-matching boundary in `pylint/lint/expand_modules.py`. It keeps basename and basename-pattern filtering unchanged, while converting platform-specific separators to `/` before evaluating full-path `ignore-paths` regular expressions. This makes the configured pattern portable across Windows and POSIX traversal paths without changing unrelated discovery behavior.
 
 ## Guided vs. One-Shot Comparison
 

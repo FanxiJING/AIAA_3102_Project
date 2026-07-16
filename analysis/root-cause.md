@@ -363,4 +363,28 @@ This replaces a truthiness check with an identity check against `None`. After th
 
 ## pylint-dev__pylint-7080
 
-*To be completed.*
+### Bug Mechanism
+
+The issue statement configures a path pattern such as:
+
+```ini
+ignore-paths = ["^src/gen/.*$"]
+```
+
+On Windows, recursive discovery passes paths such as `src\\gen\\about.py` to the matcher. `_is_ignored_file()` sends that raw platform path to `_is_in_ignore_list_re()`. The regular expression contains `/`, so it does not match the Windows `\\` separators and generated files are linted.
+
+The option is not lost during traversal: `PyLinter._discover_files()` already passes `self.config.ignore_paths` into `_is_ignored_file()`. The defect is the representation of the path at the final matching boundary.
+
+### Fix
+
+The path is normalized before matching:
+
+```diff
+ basename = os.path.basename(element)
++normalized_element = os.path.normpath(element).replace(os.sep, "/")
+     ...
+-    or _is_in_ignore_list_re(element, ignore_list_paths_re)
++    or _is_in_ignore_list_re(normalized_element, ignore_list_paths_re)
+```
+
+This preserves exact basename filtering and basename-pattern filtering, while making full-path patterns portable between Windows and POSIX path conventions. It applies equally to directories and files discovered by `os.walk()`.

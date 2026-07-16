@@ -42,4 +42,4 @@ The `self.__all__` value is also used for sorting in `sort_members` (line 1102).
 
 ## pylint-dev__pylint-7080
 
-*To be completed.*
+The relevant logic begins in `pylint/lint/pylinter.py`, where `PyLinter._discover_files()` uses `os.walk()` to discover Python files and delegates filtering to `_is_ignored_file()` in `pylint/lint/expand_modules.py`; that helper applies the `ignore`, `ignore-patterns`, and `ignore-paths` configuration values, which are declared in `pylint/lint/base_options.py` and compiled during configuration parsing. The bug is located at this final path-matching boundary, where recursive Windows paths are compared with configured regular expressions. The surrounding recursive-ignore tests are in `tests/test_self.py` under `TestRunTC`, and the focused student reproduction is `tests/test_pylint_7080_reproduction.py`.
