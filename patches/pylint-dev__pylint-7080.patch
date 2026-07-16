@@ -2,7 +2,7 @@ diff --git a/pylint/lint/expand_modules.py b/pylint/lint/expand_modules.py
 index 5cacc0371..84d91aa8d 100644
 --- a/pylint/lint/expand_modules.py
 +++ b/pylint/lint/expand_modules.py
-@@ -53,9 +53,11 @@ def _is_ignored_file(
+@@ -53,10 +53,11 @@ def _is_ignored_file(
      ignore_list_paths_re: list[Pattern[str]],
  ) -> bool:
      basename = os.path.basename(element)
@@ -13,4 +13,5 @@ index 5cacc0371..84d91aa8d 100644
 -        or _is_in_ignore_list_re(element, ignore_list_paths_re)
 +        or _is_in_ignore_list_re(normalized_element, ignore_list_paths_re)
      )
+ 
  
