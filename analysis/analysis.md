@@ -268,4 +268,3 @@ The guided review ran inside the continuing main Codex session rather than a new
 | Dollar/API cost | Not present in the local rollout record |
 
 The guided review encountered one invalid evidence attempt before the accepted red check: piping `git diff` directly into `git apply` under PowerShell did not apply the test patch, so the resulting missing-test `AttributeError` was discarded. The review then used `git diff --output` to create a temporary test-only patch, verified `git apply --check`, confirmed that only `tests/migrations/test_writer.py` changed, and obtained the expected assertion failure. This correction is recorded in `logs/django__django-14580-guided.md` and is not counted as a product defect.
-
