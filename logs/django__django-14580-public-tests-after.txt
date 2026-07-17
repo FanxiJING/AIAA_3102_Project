@@ -1,8 +1,0 @@
-..................................................
-----------------------------------------------------------------------
-Ran 50 tests in 0.417s
-
-OK
-Testing against Django installed in 'D:\data_code\py for ai\final_project\topic-c-swe-bench-codebase-adoption\repos\django__django-14580\django'
-Found 50 test(s).
-System check identified no issues (0 silenced).

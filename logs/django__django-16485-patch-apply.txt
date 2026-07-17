@@ -1,2 +1,0 @@
- M django/template/defaultfilters.py
- M tests/template_tests/filter_tests/test_floatformat.py
