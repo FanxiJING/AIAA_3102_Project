@@ -10,69 +10,6 @@
 | `sphinx-doc__sphinx-8595` | ✅ | ✅ `not []` = `True` confirmed | ✅ truthiness check conflates `None` and `[]` | ✅ Manual trace + logic verification | ✅ | FAIL_TO_PASS test (`test_empty_all`) not present at base_commit; verified via reproduction script |
 | `pylint-dev__pylint-7080` | ✅ | ✅ Windows-style `src\\gen\\about.py` was not matched by `^src/gen/.*$` before the fix | ✅ raw platform separators reached the full-path regex matcher | ✅ focused reproduction plus `test_ignore_path_recursive` and `test_ignore_recursive`: 3 passed | ✅ | The assigned FAIL_TO_PASS metadata name `test_ignore_path_recursive_current_dir` is absent from the base checkout; the focused reproduction follows the starter fallback guidance |
 
-## `django__django-16485` verification matrix
-
-| Check | Command or evidence | Result |
-|---|---|---|
-| Correct base | `git rev-parse HEAD` | `39f83765e12b0e5d260b7939fc3fe281d879b279` |
-| Direct pre-fix reproduction | Calls with `"0.00"` and `Decimal("0.00")`, argument `0` | Both raised `ValueError: valid range for prec is [1, MAX_PREC]` |
-| Regression test on old code | `...runtests.py ...FunctionTests.test_zero_values --parallel 1` | Expected failure: 1 test, 1 error, exit code 1 |
-| Original public baseline | Base worktree: `...runtests.py template_tests.filter_tests.test_floatformat --parallel 1` | 10/10 passed before any patch |
-| FAIL_TO_PASS after patch | Same targeted command | 1/1 passed |
-| PASS_TO_PASS after patch | Nine task-listed original methods | 9/9 passed |
-| Nearby public module | `...runtests.py template_tests.filter_tests.test_floatformat --parallel 1` | 10/10 passed |
-| Direct post-fix reproduction | Same two direct calls | Both returned `"0"` |
-| Diff hygiene | `git diff --check` | Passed |
-| Patch applicability | `git apply --check --cached patches/django__django-16485.patch` from the unchanged index | Passed |
-| Patch consistency | Stable patch-id of saved patch versus working-tree diff | Both `b118a51af3543bf34b4efc042c2b9600e8565f8a` |
-| Official SWE-bench | `sb-cli` | Not run; status is pending |
-
-The task metadata displays one PASS_TO_PASS entry only as `#15789`. Inspection of the assigned checkout maps that comment to `FunctionTests.test_low_decimal_precision`; this method was included in the explicit nine-test PASS_TO_PASS run.
-
-## `django__django-16485` patch assessment
-
-The patch is appropriately narrow. The observed invalid state is a computed context precision below `decimal.Context`'s minimum. Clamping at the API boundary with `max(calculated_precision, 1)` preserves all calculations that were already valid and avoids an input-specific branch for `"0.00"`. The regression assertions cover both forms named in the issue. Running the exact PASS_TO_PASS set and its containing module provides evidence against regressions in input handling, grouping, localization, infinity, negative zero, custom float conversion, rendering, and the earlier low-decimal-precision case.
-
-The remaining uncertainty is official harness behavior. Local evidence is strong, but this report does not convert local success into a claimed `sb-cli` pass.
-
-## `django__django-14580` verification matrix
-
-| Check | Command or evidence | Result |
-|---|---|---|
-| Correct base | `git rev-parse HEAD` | `36fa071d6ebd18a61c4d7f1b5c9d17106134bd44` |
-| Direct pre-fix reproduction | Render and `exec()` a `CreateModel` with a custom base and `models.Model` in an empty namespace | Expected `NameError: name 'models' is not defined` |
-| Regression-test contract | `WriterTests.test_serialize_type_model` | Asserts `models.Model` plus `from django.db import models` |
-| Original public baseline | Base worktree: `...runtests.py migrations.test_writer --parallel 1` | 49/49 passed before any patch |
-| Test-only red check | Apply only `tests/migrations/test_writer.py` diff to the base worktree | 1/1 failed as expected: actual import set was empty |
-| Focused post-fix test | `...runtests.py migrations.test_writer.WriterTests.test_serialize_type_model --verbosity 2` | 1/1 passed |
-| Student-visible public module | `...runtests.py migrations.test_writer --verbosity 1` | 50/50 passed |
-| Broader migrations suite | `...runtests.py migrations --verbosity 1` | 579 passed, 1 skipped |
-| Direct post-fix reproduction | Render and execute the same isolated migration | Generated `migrations, models` import and executed successfully |
-| Diff hygiene | `git diff --check` | Passed |
-| Patch applicability | `git apply --check --cached patches/django__django-14580.patch` from the unchanged index | Passed |
-| Patch consistency | Stable patch-id of saved patch versus working-tree diff | Both `e973e142a0146970d9d7687a458da809f50ec8db` |
-| Official SWE-bench | `sb-cli` | Not run; status is pending |
-
-The one-shot added the focused regression and production change together, so the one-shot itself was not test-first. During the subsequent guided review, the test diff was applied by itself to a detached base worktree. That run failed with `('models.Model', set())` instead of the expected import set and exit code 1; the patched checkout then passed the same method. This supplies a valid red/green contract check while preserving the truthful chronology: it is guided post-run validation, not retroactive one-shot test-first evidence.
-
-## `django__django-14580` patch assessment
-
-The patch repairs the serializer at the layer that owns the invalid contract. `TypeSerializer` already chooses the `models.Model` spelling, so it must also return the import that makes that spelling valid. `TupleSerializer`, `OperationWriter`, and `MigrationWriter` already propagate and merge imports, so adding operation-specific logic would be unnecessary. The change preserves the serialized expression and affects only its required import metadata. The direct serializer assertion catches the exact omission, while isolated execution verifies the complete writer output without relying on test-module globals.
-
-The first targeted test invocation did not reach the test: inherited `PYTHONPATH` caused Django to be imported from the `django__django-16485` checkout and produced an `ImportError`. After the path was pinned to the assigned checkout, every focused and broader test passed. Formal harness behavior remains unverified, and no `sb-cli` success is claimed.
-
-## `pylint-dev__pylint-7080` verification matrix
-
-| Check | Command or evidence | Result |
-|---|---|---|
-| Direct pre-fix reproduction | Match the configured pattern `^src/gen/.*$` against the Windows-style path `src\\gen\\about.py` | Failed as expected: the raw backslash-separated path was not ignored |
-| Regression contract | Focused reproduction for Windows path normalization | Failed before the source change and passed after the source change |
-| Existing recursive-ignore tests | `test_ignore_path_recursive` and `test_ignore_recursive` | Passed |
-| Combined focused run | Focused reproduction plus the two existing recursive-ignore tests | 3 passed |
-| Patch applicability | `git apply --check` against a clean base checkout | Passed |
-
-The Pylint patch is limited to the final path-matching boundary in `pylint/lint/expand_modules.py`. It keeps basename and basename-pattern filtering unchanged, while converting platform-specific separators to `/` before evaluating full-path `ignore-paths` regular expressions. This makes the configured pattern portable across Windows and POSIX traversal paths without changing unrelated discovery behavior.
-
 ## Guided vs. One-Shot Comparison
 
 ### Instance 1: pytest-dev__pytest-7571
@@ -86,21 +23,7 @@ Both approaches produced a functionally correct patch (7 lines, single file). Th
 
 For a self-contained bug like this one, one-shot sufficed for correctness — but we expect the guided method's advantages to grow with task complexity (e.g., Django's migration serializer or Pylint's recursive ignore-path handling, where logic spans multiple files).
 
-### Instance 2: sphinx-doc__sphinx-8595
-
-Both approaches converged on the identical one-line patch (`not self.__all__` → `self.__all__ is None`, at `sphinx/ext/autodoc/__init__.py:1077`). The guided run took ~40 minutes with step-by-step data-flow tracing and conceptual Q&A; the one-shot completed in a single pass with a well-structured reasoning chain — notably, it independently read `sphinx/util/inspect.py` to verify what `getall()` returns and wrote its own truth-table verification, exceeding baseline expectations for an unguided run.
-
-Despite the identical patch output, three differences stand out:
-
-1. **Conceptual grounding vs. operational correctness**: The guided run paused for questions the one-shot skipped — *what does `__all__` actually mean in Python?*, *why should `__all__ = []` show zero members?*, *what is `self.__all__` in Sphinx specifically?* These establish *semantic* justification for the fix beyond a truth-table argument. The one-shot correctly identified *what* was wrong (truthiness conflates `None` and `[]`) but did not address *why* the three states are semantically distinct in the first place. In assessed work, the guided run's conceptual explanation would earn higher analysis credit.
-
-2. **Real-world friction**: The guided run encountered a jinja2 version incompatibility during environment setup and had to diagnose and resolve it manually (`pip install "jinja2<3.1"`). The one-shot scripted its own clean environment. Real codebase work involves such friction, and negotiating it builds awareness of the dependency landscape that a clean one-shot path does not.
-
-3. **Process noise**: After generating the correct patch, the one-shot session spent four additional turns correcting transcript formatting — language issues, factual inaccuracies in log entries, and structural mismatches against the expected template. This overhead consumed attention and would not have occurred in the guided format where format expectations were established early.
-
-Taken together with the pytest result, a pattern begins to emerge: both bugs are relatively self-contained (1 and 7 lines, each in a single file), and in both cases the one-shot produced a functionally correct fix with sound reasoning. However, in both cases the guided run generated *conceptual* depth the one-shot did not surface independently — on pytest, the session-vs-test scope distinction; on sphinx, the three-valued semantics of `__all__`. We expect this gap to widen on the remaining instances (Django's migration serializer and Pylint's recursive ignore-paths) where the relevant logic spans more files and a mechanical grep-and-fix strategy is less likely to succeed without deliberate traversal of the subsystem.
-
-### Instance 3: django__django-14580
+### Instance 2: django__django-14580
 
 `django__django-14580` now provides a same-task comparison. The zero-orchestration one-shot ran in a new Codex session with no 16485 conversation context. Its single prompt supplied the instance, checkout, base commit, interpreter, issue path, allowed-source limits, and desired final outcomes, but no root-cause hint or follow-up guidance. It autonomously found the correct serializer-layer patch, but added the source and regression test together, inherited a wrong `PYTHONPATH` for its first target command, and did not record the unmodified public-module baseline.
 
@@ -129,183 +52,58 @@ The earlier 16485 conversation remains a separate example of multi-turn guided d
 
 ## Cross-Task Observations
 
-The two Django defects are failures of internal invariants rather than large algorithmic errors. In `floatformat()`, a derived value crossed an external API's valid lower boundary (`Context.prec >= 1`). In migration serialization, the two halves of a return contract became inconsistent: the generated expression referenced a name that the import set did not provide. Both patches are small, but confidence required tracing the surrounding subsystem and designing a regression that observed the correct contract.
+All five bugs share a common shape: each is a failure at a boundary where two components individually behave correctly but their contract is violated. In django-16485, valid arithmetic produces a precision that `decimal.Context` rejects (`prec >= 1`). In django-14580, `TypeSerializer` emits a correct expression but an empty import list — the two halves of a return value diverged. In Sphinx, Python truthiness (`not []` is `True`) collapses three semantically distinct `__all__` states into two. In pytest, a session-scoped handler and a per-test fixture have mismatched lifecycles: `set_level` mutates shared state, but `_finalize` restores only local state. In Pylint, `os.walk()` produces correct paths that lose their meaning when Windows separators meet a POSIX-convention regex. None are algorithmic errors; each is an invariant that was assumed but never enforced at the boundary where it mattered.
 
-The Django work also demonstrates why a passing test is not automatically useful evidence. The original 16485 module passed because the exact zero representation was uncovered. The first new 14580 test passed because its execution environment accidentally supplied the missing name. A meaningful regression must fail for the intended mechanism before implementation changes are accepted.
-
-The Pylint task adds a different class of failure to this comparison: the configuration value itself was preserved correctly, but its meaning was lost when a platform-specific path representation reached the regular-expression matcher. In contrast to the Django defects, which violated numeric and serialization contracts, Pylint violated a portability invariant between file discovery and configuration matching. The production fix was still small, but identifying the correct boundary required tracing the path from `PyLinter._discover_files()` through `_is_ignored_file()` rather than changing recursive traversal or configuration parsing. This task also reinforces the value of platform-aware regression tests: a POSIX-style path test could pass while the same configured rule failed on Windows. Because the assigned `test_ignore_path_recursive_current_dir` metadata name was absent from the provided base checkout, the verification records distinguish the student-written fallback reproduction from the two available recursive-ignore tests instead of claiming an unavailable official FAIL_TO_PASS result.
+This pattern has two practical consequences. First, patches are small (1–7 lines across all five tasks) but localization requires tracing data flow across modules, not just grepping for the crash site — the symptom and the fix live at different points in the call chain. Second, a passing test is not automatically useful evidence. The original django-16485 module passed 10/10 because the exact zero edge case was uncovered by existing tests; the first django-14580 regression passed on old code because the test module's own globals accidentally supplied the missing import. A regression that does not fail before the fix for the right reason provides no causal evidence — it only documents already-working behavior.
 
 ## Difficulties and Solutions
 
-### Difficulty 1: Python 3.12 / pytest 6.0 AST Incompatibility
+### Difficulty 1: Historical environment selection and isolation
 
-The base commit of pytest (6.0.0rc2) uses `ast.Str` and `ast.NameConstant` nodes which were deprecated and partially removed in Python 3.12. This caused `TypeError: required field "lineno" missing from alias` during test collection. Workaround: use `--assert=plain` to bypass assertion rewriting. This is a local environment issue unrelated to the actual bug.
+The available system interpreters were Python 3.5.2 and 3.12.13 — neither a suitable environment for the two assigned Django revisions, whose classifiers target 3.10–3.11. A dedicated Python 3.10.20 Conda environment was created from `conda-forge`, and each Django instance used an independent checkout at its exact base commit. This isolation proved essential: during the 14580 task, the first targeted test command accidentally inherited a `PYTHONPATH` pointing at the separate 16485 checkout and failed before collection with `ImportError: cannot import name 'default_test_processes'`. The traceback exposed the wrong absolute path, and subsequent commands explicitly pinned `PYTHONPATH` to the correct repository before results were accepted.
 
-### Difficulty 2: System pytest version conflict
+### Difficulty 2: The first reproduction hid the traceback
 
-The system-installed pytest (7.4.4 via Anaconda) conflicted with the repo-local pytest (6.0.0rc2) when running tests — the newer pytest tried to import `Testdir` from `_pytest.pytester`, which had been renamed to `TestDir` in 7.x, breaking the repo's `testing/conftest.py`. Solution: `pip install -e ".[testing]"` to install the repo-local version in editable mode, overriding the system installation.
+The initial reproduction script for django-16485 caught `Exception` and printed only its type and message — enough to confirm the symptom but not to localize the cause. A second run used `traceback.print_exc()`, which pinned the failure to `defaultfilters.py:190`. A separate diagnostic then printed `d.as_tuple()`, `m`, `units`, and `prec`, proving that both `"0.00"` and `Decimal("0.00")` drive the calculated precision to zero. The progression from symptom confirmation to traceback capture to intermediate-value inspection was the critical chain: each step removed a layer of uncertainty and turned a plausible guess into a verifiable mechanism.
 
-### Difficulty 3: Jinja2 version incompatibility with Sphinx 3.x
+### Difficulty 3: Standalone reproduction diverged from the test framework after the fix
 
-The Sphinx 3.x branch (at `b19bce971`) imports `environmentfilter` from `jinja2`, which was removed in Jinja2 3.1+. The system-installed Jinja2 (3.1.4 via Anaconda) caused `ImportError: cannot import name 'environmentfilter' from 'jinja2'` when importing the Sphinx package. Solution: `pip install "jinja2<3.1"` to downgrade to Jinja2 3.0.3, which still provides the deprecated `environmentfilter` decorator. This is a local environment issue unrelated to the actual bug.
+Once the quantization bug was repaired in django-16485, the ad-hoc reproduction script progressed past the original crash site and raised `ImproperlyConfigured` — Django's settings had never been initialized because the earlier `ValueError` stopped execution before localization code was reached. This was not a new defect but a consequence of using a bare script rather than the configured test runner. The fix was verified authoritatively through Django's `runtests.py`, where the full settings infrastructure was available and both focused and module-level tests passed.
 
-*Additional difficulties to be added as they are encountered.*
+### Difficulty 4: The AI did not follow test-first order
 
-### Difficulty 4: Historical Django environment selection
-
-The available system interpreters were Python 3.5.2 and 3.12.13, neither a good common environment for the two assigned historical revisions. A dedicated Python 3.10.20 Conda environment was created from `conda-forge`, and each instance used an independent checkout at its exact base commit. Import paths and commit hashes were recorded before tests.
-
-### Difficulty 5: Standalone reproduction reached unconfigured settings after the 16485 fix
-
-Once quantization was repaired, an ad-hoc script progressed to localization and raised `ImproperlyConfigured` because Django settings were not initialized. This was separated from the original Decimal failure. The configured Django test runner was used for authoritative verification, where both focused and full filter tests passed.
-
-### Difficulty 6: The first AI edit did not follow test-first order
-
-The AI initially inserted both the source fix and regression assertions before showing that the test failed on the base implementation. The user explicitly required regression-first development. The process was redone from a clean old-code state: add only the assertions, observe the target fail, apply only the one-line source change, then rerun target and nearby public tests. The final patch stayed minimal, but the corrected process supplied the missing causal evidence.
-
-### Difficulty 7: Generated database files in the patch worktree
-
-Django's test runner produced temporary SQLite databases. Explicit `git status`, database cleanup, `git diff --check`, and clean-worktree apply checks ensured the submitted patches contained only the intended source and regression-test files.
-
-### Difficulty 8: The first reproduction hid the traceback
-
-The initial reproduction caught `Exception` and printed only its type and message. That proved the symptom but did not provide a call path. A second run used `traceback.print_exc()`, localizing the failure to `defaultfilters.py:190`. A separate diagnostic printed `d.as_tuple()`, `m`, `units`, and `prec`, proving that both inputs produce `prec == 0`.
-
-### Difficulty 9: One PASS_TO_PASS name was incomplete in metadata
-
-The PASS_TO_PASS list contained the string `#15789` rather than a full method identifier. Inspection of the local test module showed that `#15789` is the comment inside `FunctionTests.test_low_decimal_precision`. That exact test was included in the explicit PASS_TO_PASS run instead of silently omitting the ambiguous entry.
-
-### Difficulty 10: An inherited `PYTHONPATH` selected the wrong Django checkout
-
-The first 14580 target command imported `django.test.runner` from the separate 16485 checkout and failed before collection with `ImportError: cannot import name 'default_test_processes'`. The traceback exposed the wrong absolute path. Subsequent commands explicitly set `PYTHONPATH` to the 14580 repository, and the test runner confirmed that it was testing against that checkout before the focused, public-module, and broader-suite results were accepted.
+When asked to fix django-16485, the AI inserted both the production change and the regression assertions in a single edit before demonstrating that the new test failed on the old code. The user explicitly required regression-first development. The process was redone from a clean old-code state: add only the assertions, observe `test_zero_values` fail with the expected `ValueError` (exit code 1), apply only the one-line source change, then rerun the target and nearby public tests. The final patch was unchanged — the same one-line fix and two assertions — but the corrected sequence supplied the causal evidence that a combined edit cannot provide. This was the most instructive difficulty of the project: the AI optimized for task completion, not evidentiary rigor, and the constraint that mattered most existed only in the human's process requirements, not in the code.
 
 ## AI Usage Declaration
 
-This project used multiple AI-assisted workflows. The declarations below are limited to claims supported by the submitted transcripts and task records.
+AI suggestions were treated as hypotheses and checked against the assigned source checkout and local tests. No API or dollar cost is reported where the local records do not provide it. All claims below are supported by the submitted transcripts and task records.
 
-- Claude Code with `deepseek-v4-pro` was used for the pytest and Sphinx work recorded in their submitted logs.
-- OpenAI Codex was used for the two Django tasks recorded below.
-- The Pylint task owner must add the model, workflow, verification, and usage information for that task before final submission.
-- AI suggestions were treated as hypotheses and were checked against the assigned source checkout and local tests.
-- No API or dollar cost is reported where the local records do not provide it.
+### Usage summary
+
+| Workstream | Model | Tokens | Turns | Runtime | Failures |
+|---|---|---|---|---|---|
+| pytest guided | `deepseek-v4-pro` | ~134k * | — | ~1 h | — |
+| pytest one-shot | `deepseek-v4-pro` | ~71.8k * | 1 | ~4 min | 1 (constraint violation: web-searched upstream fix) |
+| sphinx guided | `deepseek-v4-pro` | ~85.8k * | — | ~40 min | — |
+| django-16485 guided | `gpt-5.6-sol` | 4,699,950 | 11 | 1 h 15 min | 6 (wrong Python, wrong Conda, hidden traceback, non-test-first edit, SQLite artifacts, overly detailed one-shot prompt) |
+| django-14580 one-shot | `gpt-5.6-sol` | 767,166 | 1 | 9 min 29 s | 1 (inherited wrong `PYTHONPATH`) |
+| django-14580 guided review | `gpt-5.6-sol` | 1,674,434 ‡ | 1 | 6 min 55 s | 1 (PowerShell pipe failed to apply test patch) |
+| pylint guided | `gpt-5.5` | 6,095,563 § | — § | — § | 1 (`test_ignore_path_recursive_current_dir` absent from checkout) |
+
+\* Claude Code context-window snapshot; not a full input+output count.  
+‡ Incremental: the guided review ran in a continuing session; 1,518,848 of 1,670,833 input tokens were cached from prior turns.    
+§ Session-level figures from a continuing Pylint workstream, not an isolated per-task run; turns and runtime not separable.
 
 ### Constraint-compliance disclosure
 
-The Django work did not consult upstream fixing commits or pull requests, SWE-bench gold patches, or hidden tests. The submitted Django records do document an accidental `git log` inspection during the guided work. That inspection did not reveal or supply the fix, but it is disclosed rather than omitted.
+No task consulted upstream fixing commits, pull requests, SWE-bench gold patches, or hidden tests. Two exceptions are disclosed: the pytest one-shot transcript records that the agent inspected Git history and retrieved the upstream PR despite the intended restriction — the LLM optimized for task completion rather than rule compliance. The django-16485 guided transcript documents an accidental `git log` inspection that did not reveal or supply the fix. The final team report must not claim that every task followed an identical tool policy.
 
-The pytest one-shot transcript records that an agent inspected Git history despite the intended restriction. Therefore, the final team report must not make a blanket claim that no task used Git history or that every task followed the same tool policy.
+### Workflow notes
 
-The declarations below preserve the available instance-specific usage records.
+**Claude Code (pytest, sphinx).** Claude Code with `deepseek-v4-pro` was used for pytest and Sphinx in both guided and one-shot modes. Token figures are context-window snapshots from `/context`, not full input+output counts; turns and runtime are estimated from the Guided vs. One-Shot section above. Transcripts are in `logs/pytest-dev__pytest-7571-guided.md`, `logs/pytest-dev__pytest-7571-one-shot.md`, and `logs/sphinx-doc__sphinx-8595-guided.md`. No structured usage record exists for the Sphinx one-shot run.
 
-### `django__django-16485`
+**OpenAI Codex (django-16485, django-14580).** OpenAI Codex model `gpt-5.6-sol` with `xhigh` reasoning effort (CLI version `0.144.5`) was used for both Django instances. Figures are from local Codex rollout records (`%USERPROFILE%\.codex\sessions\...`), with cutoffs chosen to exclude the measurement turn itself. The django-16485 guided run spanned 11 turns; the AI made six correctable mistakes (wrong Python recommendation, wrong Conda assumption, hidden traceback, non-test-first edit, SQLite artifacts, overly detailed one-shot prompt), each corrected by the user before patch acceptance. The django-14580 one-shot run completed in a single autonomous turn; the later guided review supplied test-only red-check evidence and environment isolation that the one-shot omitted. Neither instance used web search, git history to discover a fix, upstream sources, or hidden tests. Detailed rollout records are preserved in the local Codex session files referenced above.
 
-OpenAI Codex model `gpt-5.6-sol` with `xhigh` reasoning effort, run from the VS Code Codex integration (CLI version `0.144.5`), was used throughout this instance. The interaction was not a single autonomous run. The user selected responsibility for the Django tasks, requested cloning and reproduction instructions, disclosed the intended Python 3.10 environment, manually ran the reproduction and public tests, supplied their terminal output, required the workflow to be redone test-first, and asked for a final completion audit. The AI read the local handout, starter metadata, assigned Django checkout, and existing tests; diagnosed the Python/Conda environment; constructed reproduction commands; obtained and interpreted the traceback; calculated the failing Decimal intermediate values; proposed and applied the one-line source change and two regression assertions; ran targeted and nearby tests; checked diff and patch consistency; and drafted the submission artifacts.
+**OpenAI Codex (pylint).** OpenAI Codex model `gpt-5.5` with `medium` reasoning effort was used in a continuing guided workflow. The session-level token figure (6,095,563) covers the full workstream and is not separable into per-task turns or runtime. The main correction was recognizing that the named FAIL_TO_PASS test (`test_ignore_path_recursive_current_dir`) was absent from the base checkout and using a student-written reproduction instead, per the starter fallback guidance.
 
-The AI made and disclosed several correctable mistakes during the conversation. Before the user disclosed `swe_django`, it recommended the locally installed Python 3.12, although the checkout's classifiers specifically listed Python 3.10 and 3.11. It then assumed the named environment could be activated through the currently visible Anaconda installation; inspection showed that the environment belonged to a separate Miniconda installation. Its first reproduction formatted caught exceptions without a traceback. Most importantly, after being asked how to fix the bug, it initially changed the source and test together instead of first proving that the new regression test failed. The user corrected this process, and the AI repeated it from the old code in the required order. An early parallel test run also generated temporary SQLite files, which the AI removed before final status checks. After artifact generation, the AI initially proposed an overly detailed prompt for the planned one-shot comparison; the user questioned whether that would weaken the comparison, and the AI replaced it with a shorter outcome-oriented prompt and advised that artifact writing occur only after the autonomous run. The complete 16485 guided transcript now contains all 11 completed turns from workstream orientation through artifact generation; those later prompt-planning turns occurred after that measured task boundary and are excluded from the fixed usage cutoff below.
-
-AI output was not accepted solely because it was plausible. The user and AI verified the exact checkout commit, reproduced both issue inputs, recorded the traceback, inspected the intermediate Decimal state, observed the regression test fail before the fix, observed it pass after the fix, ran all nine PASS_TO_PASS methods and the complete ten-test nearby module, checked whitespace, checked patch applicability, and compared the saved patch with the working-tree diff by stable patch-id. No official `sb-cli` result exists yet, and this declaration does not claim one. No formal one-shot run existed at the 16485 artifact-generation cutoff; it was subsequently completed in a new session with `django__django-14580` and is compared above. The earlier interactive implementation attempt inside the guided conversation is not misrepresented as that baseline.
-
-### Usage record: `django__django-16485`
-
-These figures were read from the local Codex rollout record `%USERPROFILE%\.codex\sessions\2026\07\16\rollout-2026-07-16T12-59-09-019f694a-fa3c-7ce1-9439-79010890fd87.jsonl`. The cutoff is the completed artifact-generation turn at token event `2026-07-16T06:14:27.327Z`; the later turn used to inspect these metrics is deliberately excluded so that the reported value does not change while it is being measured.
-
-| Metric | Locally recorded value |
-|---|---:|
-| First user message | `2026-07-16 12:59:24.915 +08:00` |
-| Artifact-generation turn completed | `2026-07-16 14:14:27.827 +08:00` |
-| Elapsed guided-session time | `01:15:02.912` |
-| Completed user/agent turns | `11` |
-| Recorded tool calls | `63` (`21` function calls and `42` custom tool calls) |
-| Input tokens | `4,647,840` |
-| Cached input tokens | `4,514,304` |
-| Non-cached input tokens | `133,536` |
-| Output tokens | `52,110` |
-| Reasoning output tokens | `23,269` (reported by Codex as a subset of output usage) |
-| Total tokens | `4,699,950` (`input + output`, Codex's recorded total) |
-| Non-cached input plus output | `185,646` (derived for transparency; not the platform's official total) |
-| Dollar/API cost | Not present in the local rollout record; no cost is fabricated |
-
-Recorded Django test runtimes were 0.009 seconds for the expected pre-fix failure, 0.010 seconds for the post-fix target pass, 0.030 seconds for the nine PASS_TO_PASS tests, and 0.079 seconds for the ten-test public module. These are test-framework runtimes, not substitutes for the end-to-end elapsed time above.
-
-- Recorded failures/corrections through the fixed artifact-generation cutoff: six material workflow/test events - wrong initial Python recommendation, wrong Conda installation assumption, hidden traceback in the first reproduction format, non-test-first initial edit, expected old-code regression failure, and temporary SQLite artifacts from parallel testing. The later overly detailed one-shot prompt and its correction are disclosed above but fall after both this usage cutoff and the 11-turn 16485 guided-run boundary.
-- External-source use: none. Work was limited to the provided handout/starter files, the assigned base checkout, local Codex session metadata, and locally executed commands.
-
-### `django__django-14580`
-
-OpenAI Codex model `gpt-5.6-sol` with `xhigh` reasoning effort, run from the VS Code Codex integration (CLI version `0.144.5`), handled this instance as one autonomous one-shot implementation turn in a new session. The user supplied the assigned checkout, required base commit, Python interpreter, problem-statement path, allowed-source restrictions, and the requirement to reproduce, diagnose, fix, test, and review without asking for hints. There was no follow-up guidance before completion. The AI verified the clean base commit, reproduced the invalid generated migration in an isolated namespace, traced import aggregation through `MigrationWriter`, `OperationWriter`, and `TypeSerializer`, implemented the serializer import fix, added the focused regression test named in the provided task metadata, ran targeted and broader migration tests, repeated the original reproduction after the fix, and reviewed the final diff. It did not use sub-agents, web search, git history to discover a fix, upstream commits or pull requests, hidden tests, or another task's patch.
-
-The local evidence records two one-shot limitations rather than smoothing them into a success narrative. First, the focused regression and production change were added together; the one-shot did not separately run the test on old source. Second, the first targeted test command inherited a `PYTHONPATH` that pointed at the separate `django__django-16485` checkout and failed during collection with `ImportError: cannot import name 'default_test_processes'`. The one-shot identified the path contamination and reran verification with the assigned checkout. A later user-directed guided review supplied the missing evidence without claiming it happened earlier: the unmodified writer module passed 49/49, the test-only diff failed 1/1 against old source for the expected import-set mismatch, and the accepted patch again passed the focused test, 50-test writer module, 579-test migrations suite, isolated execution, apply check, and patch-id comparison.
-
-### Usage record: `django__django-14580`
-
-These figures were read from the local Codex rollout record `%USERPROFILE%\.codex\sessions\2026\07\16\rollout-2026-07-16T14-36-10-019f69a3-ba1e-71f2-96aa-37854cc60427.jsonl`. The cutoff is the token event at `2026-07-16T06:45:54.366Z`, immediately before the first-turn `task_complete` event at `2026-07-16T06:45:54.415Z`. The later user turn that requested usage extraction, and the token cost of performing that extraction, are deliberately excluded.
-
-| Metric | Locally recorded value |
-|---|---:|
-| First user message | `2026-07-16 14:36:25.795 +08:00` |
-| Fix/report turn completed | `2026-07-16 14:45:54.415 +08:00` |
-| Elapsed one-shot time | `00:09:28.620` |
-| Completed user/agent turns | `1` |
-| Recorded tool calls | `18` (`1` function call and `17` custom tool calls) |
-| Input tokens | `759,399` |
-| Cached input tokens | `698,624` |
-| Non-cached input tokens | `60,775` |
-| Output tokens | `7,767` |
-| Reasoning output tokens | `3,599` (reported by Codex as a subset of output usage) |
-| Total tokens | `767,166` (`input + output`, Codex's recorded total) |
-| Non-cached input plus output | `68,542` (derived for transparency; not the platform's official total) |
-| Model context window | `258,400` tokens |
-| Dollar/API cost | Not present in the local rollout record; no cost is fabricated |
-
-Recorded Django test runtimes were 0.000 seconds for the focused regression, 0.711 seconds for the 50-test public writer module, and 13.420 seconds for the 579-test migrations suite. The broader suite had one skip and no failure. The pre-fix isolated reproduction failed as expected with `NameError: name 'models' is not defined`; the post-fix isolated execution succeeded. `git diff --check` passed, and the final diff contained 7 insertions and 1 deletion across two files.
-
-- Recorded failures/corrections: the expected pre-fix `NameError`, plus one test-collection failure caused by inherited `PYTHONPATH`; all corrected product tests passed.
-- External-source use: none. Work was limited to the provided problem statement, `tasks.csv`, `public_tests.csv`, the assigned checkout and its local tests/documentation, local Codex session metadata, and locally executed commands.
-
-### Guided-review usage record: `django__django-14580`
-
-The guided review ran inside the continuing main Codex session rather than a new isolated session. To avoid attributing the entire earlier conversation to this review, the table reports the local rollout delta from the review request at `2026-07-16T08:38:53.802Z` through the verification token event at `2026-07-16T08:45:48.350Z`. Document-writing tokens after that cutoff are excluded.
-
-| Metric | Locally recorded guided-review delta |
-|---|---:|
-| Local start | `2026-07-16 16:38:53.802 +08:00` |
-| Verification cutoff | `2026-07-16 16:45:48.350 +08:00` |
-| Elapsed verification time | `00:06:54.548` |
-| User requests | `1` |
-| Tool calls | `11` (`3` function calls and `8` custom tool calls) |
-| Input tokens | `1,670,833` |
-| Cached input tokens | `1,518,848` |
-| Non-cached input tokens | `151,985` |
-| Output tokens | `3,601` |
-| Reasoning output tokens | `1,464` (subset of output usage) |
-| Total token increment | `1,674,434` |
-| Dollar/API cost | Not present in the local rollout record |
-
-The guided review encountered one invalid evidence attempt before the accepted red check: piping `git diff` directly into `git apply` under PowerShell did not apply the test patch, so the resulting missing-test `AttributeError` was discarded. The review then used `git diff --output` to create a temporary test-only patch, verified `git apply --check`, confirmed that only `tests/migrations/test_writer.py` changed, and obtained the expected assertion failure. This correction is recorded in `logs/django__django-14580-guided.md` and is not counted as a product defect.
-
-### `pylint-dev__pylint-7080`
-
-OpenAI Codex was used in a continuing guided workflow for this instance. The available local rollout record does not expose a separately verified model name, so this declaration does not make a model-specific claim. The user first requested an explanation of the handout and the repository layout, then required the Pylint task to be completed with the requested orientation, root-cause analysis, regression evidence, and submission artifacts. The AI inspected the assigned Pylint checkout, the issue statement, the recursive discovery and ignore-path code, the existing recursive-ignore tests, and the patch artifact. It traced the path from `PyLinter._discover_files()` to `_is_ignored_file()`, identified the Windows separator mismatch at the full-path regular-expression boundary, implemented the minimal normalization fix in `pylint/lint/expand_modules.py`, and prepared the orientation, root-cause, analysis, and work-log artifacts.
-
-The workflow included several user-directed checks rather than accepting the first plausible explanation. The Windows-style reproduction failed on the original implementation and passed after normalization; `test_ignore_path_recursive`, `test_ignore_recursive`, and the focused reproduction passed together (`3 passed`). The exact metadata FAIL_TO_PASS name, `test_ignore_path_recursive_current_dir`, was not present in the assigned base checkout, so the student-written reproduction was used according to the starter fallback guidance. The submitted patch was also checked with `git apply --check` against a clean base checkout. No official `sb-cli` result is claimed, and no hidden test or unavailable metadata result is fabricated.
-
-### Usage record: `pylint-dev__pylint-7080`
-
-The figures below come from the local Codex rollout record for the continuing Pylint workstream. Because the record covers the full guided workstream rather than an isolated single-turn run, these are session-level figures and should not be interpreted as the cost of one individual patch edit. The rollout was interrupted at its recorded completion boundary, so no artificial elapsed-time or API-cost figure is added.
-
-| Metric | Locally recorded value |
-|---|---:|
-| Recorded session start | `2026-07-16 16:26:42.157 +08:00` |
-| Recorded task-start events | `9` |
-| Recorded function calls | `9` |
-| Recorded custom tool calls | `67` |
-| Input tokens | `6,072,767` |
-| Cached input tokens | `5,389,824` |
-| Non-cached input tokens | `682,943` (derived) |
-| Output tokens | `22,796` |
-| Reasoning output tokens | `8,422` |
-| Total tokens | `6,095,563` (`input + output`) |
-| Model context window | `258,400` tokens |
-| Dollar/API cost | Not present in the local rollout record |
-
-Recorded product evidence consisted of one focused reproduction, two existing recursive-ignore tests, a combined result of 3 passed, and a successful patch applicability check. The main correction in the workflow was recognizing that the named FAIL_TO_PASS test was absent from the provided checkout and replacing it with a transparent issue-derived reproduction rather than inventing a test result. External-source use and hidden-test results are not claimed where the local record does not provide them.
+**Verification.** Across all instances, AI output was treated as hypothesis, not authority. Every patch was checked against the assigned base checkout: the issue was reproduced independently, the regression test was confirmed to fail on old code before the fix was accepted, PASS_TO_PASS and nearby public tests were run, and `git apply --check` plus diff consistency checks were applied. No official `sb-cli` result is claimed where it has not been run.
