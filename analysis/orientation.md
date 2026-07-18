@@ -4,15 +4,7 @@ Brief description of where the relevant logic lives for each task.
 
 ## pytest-dev__pytest-7571
 
-The bug is in `src/_pytest/logging.py`, within the `LogCaptureFixture` class. Three methods are involved:
-
-- **`__init__`** (line 344): Initializes `_initial_logger_levels`, a dict that saves original logger levels for restoration. Does not track the handler's original level.
-- **`set_level`** (line 422): Mutates both the Python logger level (via `logger_obj.setLevel`) and the shared `LogCaptureHandler` level (via `self.handler.setLevel`). The logger's original level is saved via `_initial_logger_levels.setdefault()`, but the handler's original level is not saved.
-- **`_finalize`** (line 350): Called at fixture teardown. Restores logger levels from `_initial_logger_levels`, but does not restore `handler.level`.
-
-The shared handler is created once in `LoggingPlugin.__init__` (line 527) as `self.caplog_handler`. The `_runtest_for` method (line 674) stores this same handler into each test's `item._store` via `caplog_handler_key`. The `LogCaptureFixture.handler` property (line 360) retrieves it from the store. This shared-scope design means handler state persists across test boundaries.
-
-Also relevant: the `caplog` fixture definition at line 461 creates a new `LogCaptureFixture` per test and calls `_finalize` in teardown.
+The bug is in `src/_pytest/logging.py`, within the `LogCaptureFixture` class, and involves three methods: `__init__` (line 344) initializes `_initial_logger_levels`, a dictionary that saves original logger levels for restoration but does not track the handler's original level; `set_level` (line 422) mutates both the Python logger level through `logger_obj.setLevel` and the shared `LogCaptureHandler` level through `self.handler.setLevel`, saving the logger's original level via `_initial_logger_levels.setdefault()` but not saving the handler's original level; and `_finalize` (line 350), which is called at fixture teardown, restores logger levels from `_initial_logger_levels` but does not restore `handler.level`. The shared handler is created once in `LoggingPlugin.__init__` (line 527) as `self.caplog_handler`; `_runtest_for` (line 674) stores this same handler in each test's `item._store` via `caplog_handler_key`, and the `LogCaptureFixture.handler` property (line 360) retrieves it from that store, so the shared-scope handler state persists across test boundaries. Also relevant is the `caplog` fixture definition at line 461, which creates a new `LogCaptureFixture` for each test and calls `_finalize` during teardown.
 
 ## django__django-16485
 
@@ -24,13 +16,7 @@ The bug is in `django/db/migrations/serializer.py`, within the `TypeSerializer` 
 
 ## sphinx-doc__sphinx-8595
 
-The bug is in `sphinx/ext/autodoc/__init__.py`, within the `ModuleDocumenter` class (a subclass of `Documenter` that handles `automodule` directives). Three locations are involved:
-
-- **`__init__`** (line 989): Initializes `self.__all__ = None` — the default value indicating "no `__all__` defined."
-- **`import_object`** (line 1015): Calls `inspect.getall(self.object)` to read the documented Python module's actual `__all__` variable, storing the result in `self.__all__`. If the module has `__all__ = []`, this stores `[]`; if it has `__all__ = ['foo']`, it stores `['foo']`; if there is no `__all__`, the `AttributeError` is caught and `self.__all__` stays `None`.
-- **`get_object_members`** (line 1074): The decision point. When `want_all` is `True` (i.e., `:members:` was used), it checks `if not self.__all__:` (line 1077) to decide whether to return all members or filter by `__all__`. The truthiness check treats both `None` (undefined) and `[]` (empty) as falsy, conflating two semantically distinct cases.
-
-The `self.__all__` value is also used for sorting in `sort_members` (line 1102).
+The bug is in `sphinx/ext/autodoc/__init__.py`, within the `ModuleDocumenter` class, a subclass of `Documenter` that handles `automodule` directives, and involves three locations: `__init__` (line 989) initializes `self.__all__ = None`, the default value indicating that no `__all__` is defined; `import_object` (line 1015) calls `inspect.getall(self.object)` to read the documented Python module's actual `__all__` variable and stores the result in `self.__all__`, so a module with `__all__ = []` produces `[]`, a module with `__all__ = ['foo']` produces `['foo']`, and a module without `__all__` raises an `AttributeError` that is caught while `self.__all__` remains `None`; and `get_object_members` (line 1074) is the decision point where, when `want_all` is `True` because `:members:` was used, line 1077 checks `if not self.__all__:` to decide whether to return all members or filter by `__all__`. That truthiness check treats both `None` (undefined) and `[]` (explicitly empty) as falsy and therefore conflates two semantically distinct cases. The `self.__all__` value is also used for sorting in `sort_members` (line 1102).
 
 ## pylint-dev__pylint-7080
 
