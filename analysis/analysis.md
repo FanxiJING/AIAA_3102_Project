@@ -88,7 +88,7 @@ AI suggestions were treated as hypotheses and checked against the assigned sourc
 | django-16485 guided | `gpt-5.6-sol` | 4,699,950 | 11 | 1 h 15 min | 6 (wrong Python, wrong Conda, hidden traceback, non-test-first edit, SQLite artifacts, overly detailed one-shot prompt) |
 | django-14580 one-shot | `gpt-5.6-sol` | 767,166 | 1 | 9 min 29 s | 1 (inherited wrong `PYTHONPATH`) |
 | django-14580 guided review | `gpt-5.6-sol` | 1,674,434 ‡ | 1 | 6 min 55 s | 1 (PowerShell pipe failed to apply test patch) |
-| pylint guided | `gpt-5.5` | 6,095,563 § | — § | — § | 1 (`test_ignore_path_recursive_current_dir` absent from checkout) |
+| pylint guided | `gpt-5.5` | 6,095,563 § | 8 § | ~30 min | 1 (`test_ignore_path_recursive_current_dir` absent from checkout) |
 
 \* Claude Code context-window snapshot; not a full input+output count.  
 ‡ Incremental: the guided review ran in a continuing session; 1,518,848 of 1,670,833 input tokens were cached from prior turns.    
