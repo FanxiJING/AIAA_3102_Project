@@ -1,4 +1,4 @@
-# Raw Visible Transcript: `django__django-14580` One-Shot Run
+# `django__django-14580` — One-Shot Run Transcript
 
 > Mechanical export from the local Codex rollout JSONL. It contains every visible user message, visible assistant message, tool call, and tool output in the measured one-shot turn. System/developer instructions and hidden reasoning are excluded.
 >
