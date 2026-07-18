@@ -1,4 +1,4 @@
-# `django__django-14580` Complete Guided Review Transcript
+# `django__django-14580` Guided Run Transcript
 
 > This guided review began after the separate one-shot run had completed. The complete one-shot transcript is preserved in `django__django-14580-one-shot.md` and is not duplicated here. This file starts with the first post-one-shot audit and preserves the subsequent guided user messages, assistant messages, tool calls, tool outputs, and recorded timing.
 
