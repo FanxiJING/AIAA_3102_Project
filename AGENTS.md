@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -100,11 +100,11 @@ When packaging for `sb-cli`, create a JSON file with one object per instance:
 
 ## Deliverables Checklist
 
-- `./patches/<instance_id>.patch` for all 5 instances
-- `./patches/predictions.jsonl`
-- `./analysis/orientation.md` — where the relevant logic lives per task
-- `./analysis/root-cause.md` — mechanism-level explanation of each bug
-- `./analysis/analysis.md` — verification table, guided-vs-one-shot comparison, cross-task observations, difficulties, AI usage declaration
-- `./logs/<instance_id>-guided.md` and at least one `-one-shot.md` transcript
-- `./results/sb-cli/` — evaluation artifacts
+- `starter/patches/<instance_id>.patch` for all 5 instances
+- `starter/patches/predictions.jsonl`
+- `starter/analysis/orientation.md` — where the relevant logic lives per task
+- `starter/analysis/root-cause.md` — mechanism-level explanation of each bug
+- `starter/analysis/analysis.md` — verification table, guided-vs-one-shot comparison, cross-task observations, difficulties, AI usage declaration
+- `starter/logs/<instance_id>-guided.md` and at least one `-one-shot.md` transcript
+- `starter/results/sb-cli/` — evaluation artifacts
 - `report.pdf` — self-contained project report

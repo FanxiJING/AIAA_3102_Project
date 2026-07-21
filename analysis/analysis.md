@@ -4,11 +4,85 @@
 
 | Instance | Patch | Reproduced | Root Cause Found | Local Test | `git apply --check` | Notes |
 |---|---|---|---|---|---|---|
-| `pytest-dev__pytest-7571` | ✅ | ✅ `handler.level = 42` leaked | ✅ `_finalize` missing handler level restore | ✅ `test_change_level` passed | ✅ | `test_change_level_undo` failed due to Python 3.12 / pytest 6.0 AST incompatibility (unrelated) |
-| `django__django-16485` | ✅ | ✅ both supplied inputs raised invalid `Context(prec=0)` | ✅ derived precision violated `decimal.Context` minimum | ✅ F2P 1/1, P2P 9/9, public module 10/10 | ✅ | Original public baseline 10/10; official `sb-cli` not run |
-| `django__django-14580` | ✅ | ✅ isolated generated migration raised `NameError` | ✅ `TypeSerializer` emitted `models.Model` without its required import | ✅ focused 1/1, writer 50/50, migrations 579 with 1 skip | ✅ | Test-only old-source check failed as expected; official `sb-cli` not run |
-| `sphinx-doc__sphinx-8595` | ✅ | ✅ `not []` = `True` confirmed | ✅ truthiness check conflates `None` and `[]` | ✅ Manual trace + logic verification | ✅ | FAIL_TO_PASS test (`test_empty_all`) not present at base_commit; verified via reproduction script |
-| `pylint-dev__pylint-7080` | ✅ | ✅ Windows-style `src\\gen\\about.py` was not matched by `^src/gen/.*$` before the fix | ✅ raw platform separators reached the full-path regex matcher | ✅ focused reproduction plus `test_ignore_path_recursive` and `test_ignore_recursive`: 3 passed | ✅ | The assigned FAIL_TO_PASS metadata name `test_ignore_path_recursive_current_dir` is absent from the base checkout; the focused reproduction follows the starter fallback guidance |
+| `pytest-dev__pytest-7571` | ✅ | ✅ `handler.level = 42` leaked | ✅ `_finalize` missing handler level restore | ✅ focused red/green 2/2, `test_change_level` 1/1 | ✅ | `test_change_level_undo` failed due to Python 3.12 / pytest 6.0 AST incompatibility; `sb-cli` attempted in `my_id_9` but no completed result was produced |
+| `django__django-16485` | ✅ | ✅ both supplied inputs raised invalid `Context(prec=0)` | ✅ derived precision violated `decimal.Context` minimum | ✅ F2P 1/1, P2P 9/9, public module 10/10 | ✅ | Original public baseline 10/10; `sb-cli` attempted in `my_id_9` but no completed result was produced |
+| `django__django-14580` | ✅ | ✅ isolated generated migration raised `NameError` | ✅ `TypeSerializer` emitted `models.Model` without its required import | ✅ focused 1/1, writer 50/50, migrations 579 with 1 skip | ✅ | Test-only old-source check failed as expected; `sb-cli` attempted in `my_id_9` but no completed result was produced |
+| `sphinx-doc__sphinx-8595` | ✅ | ✅ empty `__all__` documented `hidden()` before fix | ✅ truthiness check conflates `None` and `[]` | ✅ focused red/green reproduction; public `ignore_module_all` logic passed | ✅ | Pytest runner was blocked by environment pollution / Python 3.12 AST incompatibility, so public logic was executed directly; `sb-cli` attempted in `my_id_9` but no completed result was produced |
+| `pylint-dev__pylint-7080` | ✅ | ✅ Windows-style `src\\gen\\about.py` was not matched by `^src/gen/.*$` before the fix | ✅ raw platform separators reached the full-path regex matcher | ✅ focused reproduction plus `test_ignore_path_recursive` and `test_ignore_recursive`: 3 passed | ✅ | The assigned FAIL_TO_PASS metadata name is absent from the base checkout; focused reproduction follows starter guidance; `sb-cli` attempted in `my_id_9` but no completed result was produced |
+
+## Local Test Evidence
+
+This section expands the verification table with reproducible local evidence.
+
+### pytest-dev__pytest-7571
+
+- **Environment**: Windows PowerShell with Python 3.12.3 from the base Anaconda environment; the old pytest checkout required `PYTHONPATH=src`, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, and `--assert=plain` to avoid Python 3.12 assertion-rewriter incompatibilities.
+- **Checkout**: `repos/pytest-dev__pytest-7571` at base commit `422685d0bdc110547535036c1ff398b5e1c44145`.
+- **Version-file setup**: The checkout lacked generated `src/_pytest/_version.py`, so the locally generated version file from the sibling pytest checkout was copied temporarily for the test run and then removed after verification.
+- **Pre-fix reproduction**: A temporary two-test file called `caplog.set_level(42)` in `test_foo` and asserted `caplog.handler.level == 0` in `test_bar`. On old source, `python -m pytest --assert=plain -s -q tmp_caplog_repro.py` printed `handler.level = 42` and failed 1/2 with `AssertionError`.
+- **Patch applicability**: `git apply --check ../../patches/pytest-dev__pytest-7571.patch` passed on the clean base checkout before applying the patch.
+- **Post-fix focused reproduction**: Running the same temporary reproduction after applying the patch printed `handler.level = 0` and passed 2/2.
+- **Post-fix public focused test**: `python -m pytest --assert=plain -q testing/logging/test_fixture.py::test_change_level` passed 1/1.
+- **Blocked public nested test**: `python -m pytest --assert=plain -q testing/logging/test_fixture.py::test_change_level_undo` failed before exercising the logging behavior because `testdir.runpytest()` launched a nested pytest process that hit the old assertion rewriter's Python 3.12 collection error: `TypeError: required field "lineno" missing from alias`.
+- **Interpretation**: The focused red/green reproduction verifies the reported handler-level leak and fix. The remaining public nested-test failure is an environment compatibility limitation of pytest 6.0.0rc2 on Python 3.12, not evidence that the logging patch failed.
+
+### django__django-16485
+
+- **Environment**: Windows PowerShell with Python 3.10.20 from the dedicated `swe_django` Conda environment.
+- **Checkout**: `repos/django__django-16485` at base commit `39f83765e12b0e5d260b7939fc3fe281d879b279`.
+- **Pre-fix reproduction**: A configured standalone script calling `floatformat("0.00", 0)` and `floatformat(Decimal("0.00"), 0)` raised `ValueError: valid range for prec is [1, MAX_PREC]`, localized by traceback to `django/template/defaultfilters.py`.
+- **Regression-first check**: The two zero-value assertions were added to `FunctionTests.test_zero_values` before applying the production fix; on old source, the focused test failed with the same `ValueError`.
+- **Post-fix focused test**: `python tests/runtests.py template_tests.filter_tests.test_floatformat.FunctionTests.test_zero_values --parallel 1` passed 1/1.
+- **Post-fix PASS_TO_PASS tests**: The nine PASS_TO_PASS methods listed in `starter/tasks.csv` passed 9/9.
+- **Nearby public test**: `python tests/runtests.py template_tests.filter_tests.test_floatformat` passed 10/10.
+- **Patch applicability**: `git apply --check` passed for `patches/django__django-16485.patch`.
+
+### django__django-14580
+
+- **Environment**: Windows PowerShell with Python 3.10.20 from the dedicated `swe_django` Conda environment; `PYTHONPATH` was pinned to the assigned checkout to avoid importing the other Django task.
+- **Checkout**: `repos/django__django-14580` at base commit `36fa071d6ebd18a61c4d7f1b5c9d17106134bd44`.
+- **Pre-fix reproduction**: An isolated `MigrationWriter` reproduction generated migration source containing `models.Model` without `from django.db import models`; executing that source in an empty namespace raised `NameError: name 'models' is not defined`.
+- **Old-source public baseline**: The unmodified base checkout ran the existing writer module successfully, establishing that the patch targeted a missing edge case rather than an already-broken public module.
+- **Regression check on old source**: Applying only the focused serializer test to a clean base worktree failed 1/1 because `TypeSerializer` returned `("models.Model", set())` instead of including `from django.db import models`.
+- **Post-fix focused test**: `python tests/runtests.py migrations.test_writer.WriterTests.test_serialize_type_model --verbosity 2` passed 1/1.
+- **Post-fix public writer module**: `python tests/runtests.py migrations.test_writer --verbosity 1` passed 50/50.
+- **Post-fix broader suite**: `python tests/runtests.py migrations --verbosity 1` passed 579 tests with 1 skipped.
+- **Patch applicability**: `git apply --check` passed for `patches/django__django-14580.patch`.
+
+### pylint-dev__pylint-7080
+
+- **Environment**: Windows PowerShell in the Pylint checkout environment used for the guided run.
+- **Checkout**: `repos/pylint-dev__pylint-7080` at base commit `3c5eca2ded3dd2b59ebaf23eb289453b5d2930f0`.
+- **Assigned hidden-style test gap**: The metadata names `tests/test_self.py::TestRunTC::test_ignore_path_recursive_current_dir`, but that method is absent from the base checkout, so a local reproduction was written from the public issue statement.
+- **Pre-fix reproduction**: A Windows-style path such as `src\gen\about.py` was passed to the same ignore-path matching helper with a POSIX-style regex `^src/gen/.*$`; before the fix, the path was not ignored because backslashes reached the regex unchanged.
+- **Post-fix focused reproduction**: The same reproduction passed after normalizing the full path with forward slashes before matching `ignore-paths`.
+- **Post-fix public tests**: `python -m pytest tests/test_self.py::TestRunTC::test_ignore_path_recursive tests/test_self.py::TestRunTC::test_ignore_recursive` passed.
+- **Combined local result**: Focused reproduction plus the two public recursive-ignore tests produced 3 passed tests.
+- **Patch applicability**: `git apply --check` passed for `patches/pylint-dev__pylint-7080.patch`.
+
+### sphinx-doc__sphinx-8595
+
+- **Environment**: Windows PowerShell with Sphinx 3.5.0 from the assigned checkout and Jinja2 3.0.3; the base Python environment's pytest runner was polluted by an editable pytest 6.0 checkout and failed during collection with `TypeError: required field "lineno" missing from alias`.
+- **Checkout**: `repos/sphinx` at base commit `b19bce971e82f2497d67fdacdeca8db08ae0ba56`.
+- **Compatibility setup**: The installed `sphinxcontrib.serializinghtml` package required Sphinx 5, so the direct reproduction temporarily filtered `sphinxcontrib.serializinghtml` out of `sphinx.application.builtin_extensions`. This avoided an unrelated startup failure while preserving the autodoc code path under test.
+- **Pre-fix reproduction**: A temporary module `target.empty_all_tmp_8595` containing `__all__ = []` and a function `hidden()` was documented through the repository's existing `do_autodoc()` helper with `{'members': None}`. On old source, autodoc emitted `.. py:function:: hidden()` and printed `CONTAINS_HIDDEN= True`.
+- **Patch applicability**: `git apply --check ../../patches/sphinx-doc__sphinx-8595.patch` passed on the reverted base source before applying the patch.
+- **Post-fix focused reproduction**: Running the same direct reproduction after applying the patch emitted only the module directive and printed `CONTAINS_HIDDEN= False`.
+- **Existing public-test logic**: The logic of `tests/test_ext_autodoc.py::test_autodoc_ignore_module_all` was executed directly with `SphinxTestApp` and `do_autodoc()`. The default case produced only `['.. py:class:: Class(arg)']`, while the `ignore-module-all` case produced the expected seven class directives.
+- **Interpretation**: The focused red/green reproduction verifies the empty-`__all__` bug and fix. The directly executed public-test logic confirms that the change does not break the existing non-empty `__all__` and `ignore-module-all` behavior, despite the pytest runner itself being blocked by unrelated environment incompatibilities.
+
+## sb-cli Evaluation Attempt
+
+After generating `patches/predictions.jsonl`, we attempted the required remote SWE-bench submission through `sb-cli`.
+
+- **Submit command**: `sb-cli submit swe-bench_verified test --predictions_path .\patches\predictions.jsonl --run_id my_id_9`.
+- **Report command**: `sb-cli get-report swe-bench_verified test my_id_9 --overwrite 1`.
+- **Saved report**: `results\sb-cli\swe-bench_verified__test__my_id_9.json`.
+- **Submitted IDs**: `django__django-14580`, `django__django-16485`, `pylint-dev__pylint-7080`, `pytest-dev__pytest-7571`, and `sphinx-doc__sphinx-8595`.
+- **Report summary**: `total_instances=500`, `submitted_instances=5`, `completed_instances=0`, `pending_instances=0`, `failed_instances=5`, `resolved_instances=0`, `unresolved_instances=0`, and `error_instances=0`.
+- **Failed IDs**: all five submitted instances were listed in `failed_ids`.
+- **Interpretation**: Because no submitted instance reached `completed_ids`, `resolved_ids`, or `unresolved_ids`, this report does not show that the patches ran to completion and failed hidden tests. It records that the remote evaluation jobs failed before producing normal resolved/unresolved outcomes.
+- **Follow-up evidence**: Re-running `get-report` produced the same summary and no additional per-instance traceback. The prediction file was locally parseable as JSONL, the five instance IDs and base commits match the official SWE-bench Verified test metadata, and local red/green evidence is recorded above. We therefore treat `my_id_9` as an attempted external evaluation that failed at the service/execution layer rather than as conclusive patch-correctness evidence.
 
 ## Guided vs. One-Shot Comparison
 
@@ -44,7 +118,7 @@ The later guided review did not replace the working patch merely to create a dif
 | Broader suite | 579 passed, 1 skipped | 579 passed, 1 skipped |
 | Patch review | Minimal diff and local tests | Also apply check, stable patch-id equality, isolated `exec()`, and no unrelated files |
 | Production outcome | Correct one-line fix | Same fix accepted; no extra production change needed |
-| Official outcome | `sb-cli` not run | `sb-cli` still not run |
+| Official outcome | Included in `my_id_9`; remote evaluation produced no completed result | Included in `my_id_9`; remote evaluation produced no completed result |
 
 The same-task result is more defensible than comparing two different bugs. The one-shot was efficient and technically correct, but guidance improved evidence quality rather than code size: it supplied the missing red/green contract proof, the original public baseline, and stronger environment and packaging checks. Raw token totals are not a clean efficiency comparison because the guided review occurred in a long continuing session and `1,518,848` of its `1,670,833` input-token increment was cached context.
 
@@ -105,4 +179,4 @@ No task consulted upstream fixing commits, pull requests, SWE-bench gold patches
 
 **OpenAI Codex (pylint).** OpenAI Codex model `gpt-5.5` with `medium` reasoning effort was used in a continuing guided workflow. The session-level token figure (6,095,563) covers the full workstream and is not separable into per-task turns or runtime. The main correction was recognizing that the named FAIL_TO_PASS test (`test_ignore_path_recursive_current_dir`) was absent from the base checkout and using a student-written reproduction instead, per the starter fallback guidance.
 
-**Verification.** Across all instances, AI output was treated as hypothesis, not authority. Every patch was checked against the assigned base checkout: the issue was reproduced independently, the regression test was confirmed to fail on old code before the fix was accepted, PASS_TO_PASS and nearby public tests were run, and `git apply --check` plus diff consistency checks were applied. No official `sb-cli` result is claimed where it has not been run.
+**Verification.** Across all instances, AI output was treated as hypothesis, not authority. Every patch was checked against the assigned base checkout: the issue was reproduced independently, the regression test was confirmed to fail on old code before the fix was accepted, PASS_TO_PASS and nearby public tests were run where available, and `git apply --check` plus diff consistency checks were applied. Remote `sb-cli` evaluation was attempted in `my_id_9`, but the report returned `completed_instances=0` and `failed_instances=5`; therefore no resolved/unresolved official outcome is claimed from that service run.
