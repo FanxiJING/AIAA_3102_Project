@@ -3,3 +3,5 @@
 .idea/
 repos/
 *.txt
+*.log
+*.tex
